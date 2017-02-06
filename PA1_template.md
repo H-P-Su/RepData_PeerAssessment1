@@ -417,11 +417,12 @@ mean_weekend_text = paste("mean weekend=  ", sprintf("%.1f", mean_weekend_steps)
 mean_weekday_text = paste("mean weekday=  ", sprintf("%.1f", mean_weekday_steps))
 ```
 
-Then plot data
+Then plot data as panel plots.
 
 
 ```r
 ggplot(step_data) +
+  facet_grid(daytype ~ .) +
   geom_path( aes(datetime, steps)) +  # choose data to plot, color by day of the week
   labs(title="Step activities", y = "Steps") + # set labels
   geom_hline(yintercept = mean_weekend_steps, color = "red") +     # draw horizontal line for the mean
