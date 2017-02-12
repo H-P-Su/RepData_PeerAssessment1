@@ -8,69 +8,11 @@ Will use wday (day of the week) from lubridate.
 Will use mutate from dplyr
 
 ```r
-library(ggplot2)
-```
-
-```
-## Warning: package 'ggplot2' was built under R version 3.2.5
-```
-
-```r
-library(reshape2)
-```
-
-```
-## Warning: package 'reshape2' was built under R version 3.2.5
-```
-
-```r
-library(lubridate)
-```
-
-```
-## Warning: package 'lubridate' was built under R version 3.2.5
-```
-
-```
-## 
-## Attaching package: 'lubridate'
-```
-
-```
-## The following object is masked from 'package:base':
-## 
-##     date
-```
-
-```r
-library(dplyr)
-```
-
-```
-## Warning: package 'dplyr' was built under R version 3.2.5
-```
-
-```
-## 
-## Attaching package: 'dplyr'
-```
-
-```
-## The following objects are masked from 'package:lubridate':
-## 
-##     intersect, setdiff, union
-```
-
-```
-## The following objects are masked from 'package:stats':
-## 
-##     filter, lag
-```
-
-```
-## The following objects are masked from 'package:base':
-## 
-##     intersect, setdiff, setequal, union
+# suppress warnings about libraries packaged under a different R version
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(reshape2)))
+suppressWarnings(suppressMessages(library(lubridate)))
+suppressWarnings(suppressMessages(library(dplyr)))
 ```
 
 ### 1. Load the data (i.e. read.csv())
@@ -208,36 +150,30 @@ median_daily_steps
 
 ### 1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
 
-Although it does not change how the plot looks, we generate the dataset with steps as NA removed.
 
 ```r
-step_data_nona <- subset(step_data, !is.na(steps))
-```
-
-Here we calculate average steps taken per 5 minute interval.
-
-```r
-mean_interval_steps <- mean(step_data$steps, na.rm = TRUE)
-mean_interval_text = paste("mean =  ", sprintf("%.1f", mean_interval_steps))
+average_across_days <- melt(tapply(step_data$steps, step_data$interval, mean, na.rm = TRUE))
+names(average_across_days) <- c("interval", "ave_steps")
+average_across_days$interval_number <- as.numeric(hm(average_across_days$interval))/300
 ```
 
 Plot:
 
 ```r
 # generate plot
-ggplot(step_data_nona) +
-  geom_path( aes(datetime, steps)) +  # choose data to plot, color by day of the week
-  labs(title="Step activities", y = "Steps") + # set labels
-  geom_hline(yintercept = mean_interval_steps, color = "red") +     # draw horizontal line for the mean
-  geom_text(aes(x = mean(step_data_nona$datetime),   # position text
-                y = max(step_data_nona$steps), 
-                label = mean_interval_text,          # text 
+ggplot(average_across_days) +
+  geom_path( aes(interval_number, ave_steps)) +  # choose data to plot, color by day of the week
+  labs(title="Step activities", x = "5 minute interval" , y = "Average Steps") + # set labels
+  geom_hline(yintercept = mean(average_across_days$ave_steps), color = "red") +     # draw horizontal line for the mean
+  geom_text(aes(x = mean(average_across_days$interval_number),   # position text
+                y = max(average_across_days$ave_steps), 
+                label = paste("mean: ", sprintf("%.1f", mean(average_across_days$ave_steps))),          # text 
                 hjust = "middle",
                 vjust = "top"), 
             color = "red") 
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-10-1.png)<!-- -->
+![](PA1_template_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
 
             
             
@@ -246,7 +182,7 @@ ggplot(step_data_nona) +
 The interval with maximum steps is here:
 
 ```r
-max_steps <- step_data_nona[step_data_nona$steps == max(step_data_nona$steps) ,]
+max_steps <- average_across_days[average_across_days$ave_steps == max(average_across_days$ave_steps) ,]
 ```
 
 ## Imputing missing values
@@ -367,7 +303,7 @@ ggplot(total_daily) +
             color = "purple")
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-16-1.png)<!-- -->
+![](PA1_template_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
 This is not surprising because the NAs were filled with 0s, as this was the median value. 
 Since 0s were added to the total daily steps, it does not change the totals values.
@@ -411,34 +347,38 @@ summary(step_data)
 First calculate mean steps for weekends and weekdays
 
 ```r
-mean_weekend_steps <- mean(subset(step_data, daytype == "weekend")$steps)
-mean_weekday_steps <- mean(subset(step_data, daytype == "weekday")$steps)
+# Subset steps into weekdays and weekends
+weekday_steps <- subset(step_data, daytype == "weekday")
+average_across_weekdays <- melt(tapply(weekday_steps$steps, weekday_steps$interval, mean))
+names(average_across_weekdays) <- c("interval", "steps")
+average_across_weekdays$daytype = "weekday"
+mean_weekday_steps <- mean(weekday_steps$steps)
+average_across_weekdays$mean = mean_weekday_steps
+
+weekend_steps <- subset(step_data, daytype == "weekend")
+average_across_weekends <- melt(tapply(weekend_steps$steps, weekend_steps$interval, mean))
+names(average_across_weekends) <- c("interval", "steps")
+average_across_weekends$daytype = "weekend"
+mean_weekend_steps <- mean(weekend_steps$steps)
+average_across_weekends$mean = mean_weekend_steps
+  
 mean_weekend_text = paste("mean weekend=  ", sprintf("%.1f", mean_weekend_steps))
 mean_weekday_text = paste("mean weekday=  ", sprintf("%.1f", mean_weekday_steps))
+
+# Merge data together with rbind (it was the onyl way I got facets to work in ggplot)
+averaged_steps <- rbind(average_across_weekdays, average_across_weekends) 
+averaged_steps$interval_number <- as.numeric(hm(averaged_steps$interval))/300
 ```
 
 Then plot data as panel plots.
 
 
 ```r
-ggplot(step_data) +
+ggplot(averaged_steps) +
   facet_grid(daytype ~ .) +
-  geom_path( aes(datetime, steps)) +  # choose data to plot, color by day of the week
+  geom_path( aes(interval_number, steps)) +  # choose data to plot, color by day of the week
   labs(title="Step activities", y = "Steps") + # set labels
-  geom_hline(yintercept = mean_weekend_steps, color = "red") +     # draw horizontal line for the mean
-  geom_text(aes(x = mean(step_data$datetime),   # position text
-                y = max(step_data$steps), 
-                label = mean_weekend_text,          # text 
-                hjust = "right",
-                vjust = "top"), 
-            color = "red") +
-  geom_hline(yintercept = mean_weekday_steps, color = "purple") +     # draw horizontal line for the mean
-  geom_text(aes(x = mean(step_data$datetime),   # position text
-                y = max(step_data$steps), 
-                label = mean_weekday_text,          # text 
-                hjust = "left",
-                vjust = "top"), 
-            color = "purple") 
+  geom_hline(aes(yintercept = averaged_steps$mean), color = "red")    # draw horizontal line for the mean
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-19-1.png)<!-- -->
+![](PA1_template_files/figure-html/unnamed-chunk-18-1.png)<!-- -->
